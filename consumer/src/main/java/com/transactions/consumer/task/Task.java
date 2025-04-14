@@ -36,8 +36,8 @@ public class Task {
                 try {
                     log.debug("Waiting for an available Thread");
                     threadAvailability.acquire();
-                    threadsPoolExecutor.submit(this::processTask);
-                } catch (InterruptedException e) {
+                    threadsPoolExecutor.submit(this::processNextTask);
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -45,25 +45,41 @@ public class Task {
     }
 
 
-    public void processTask() {
+    public void processNextTask() {
         try {
-            String item = taskDao.popTask();
-            log.debug("New Task has been pop from Redis {}", item);
-            if (item == null) {
+            String taskString = taskDao.popTask();
+            if (taskString == null) {
+                log.debug("No task found in Redis.");
                 return;
             }
-            String[] itemParts = item.split(":");
-            if (itemParts.length == 3) {
-                String userId = itemParts[0];
-                String invoiceId = itemParts[1];
-                String transactionHash = itemParts[2];
-                Transaction transaction = Transaction.builder().userId(userId).invoiceId(invoiceId).transactionHash(transactionHash).build();
+
+            log.debug("Task retrieved from Redis: {}", taskString);
+
+            Transaction transaction = parseTask(taskString);
+            if (transaction != null) {
                 transactionsService.processTransaction(transaction);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
             threadAvailability.release();
+        }
+    }
+
+    private Transaction parseTask(String taskString) {
+        String[] parts = taskString.split(":");
+        if (parts.length != 3) {
+            log.warn("Invalid task format: {}", taskString);
+            return null;
+        }
+        try {
+            String userId = parts[0];
+            String invoiceId = parts[1];
+            String transactionHash = parts[2];
+            return Transaction.builder().userId(userId).invoiceId(invoiceId).transactionHash(transactionHash).build();
+        } catch (Exception e) {
+            log.error("Error parsing task string: {}", taskString, e);
+            return null;
         }
     }
 

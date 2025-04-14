@@ -14,29 +14,45 @@ The consumer application retrieves items from a list and assigns each item to an
 
 ![alt text](docs/cpu.png)
 
-```java
 
+There is a thread that takes items from a list in Redis
+
+```java
 fetchTaskExecutor.submit(() -> {
   while (running.get()) {
     try {
-      ...
+      log.debug("Waiting for an available Thread");
       threadAvailability.acquire();
-      threadsPoolExecutor.submit(this::processTask);
-    } catch (InterruptedException e) {
+      threadsPoolExecutor.submit(this::processNextTask);
+    } catch (Exception e) {
         throw new RuntimeException(e);
     }
   }
 });
+```
+Each task is assigned to an available thread and processed by that thread
 
-
-public void processTask() {
+```java
+public void processNextTask() {
   try {
-    String transaction = taskDao.popTask();
-    ...
-    transactionsService.processTransaction(transaction);
+    String taskString = taskDao.popTask();
+    if (taskString == null) {
+      log.debug("No task found in Redis.");
+      return;
+    }
+    
+    log.debug("Task retrieved from Redis: {}", taskString);
+      
+    Transaction transaction = parseTask(taskString);
+    if (transaction != null) {
+      transactionsService.processTransaction(transaction);
+    }
+  } catch (Exception e) {
+      throw new RuntimeException(e);
+  } finally {
+      threadAvailability.release();
   }
-    ...
-
+}
 ```
 
 ## Run Locally
