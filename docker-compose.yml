@@ -1,0 +1,29 @@
+services:
+
+  consumer-app:
+    image: consumer-app-docker
+    environment:
+      - DB_HOST=transactions_db
+      - DB_REDIS_HOST=transactions_queue_db
+  
+  producer-app:
+    image: producer-app-docker
+    environment:
+      - DB_REDIS_HOST=transactions_queue_db
+    ports:
+      - 8080:8080
+
+  transactions_db:
+    image: "postgres"
+    environment:
+      - POSTGRES_PASSWORD=dev_password
+    volumes:
+      - ./database/db.sql:/docker-entrypoint-initdb.d/db.sql
+    ports:
+      - 5432:5432
+
+  transactions_queue_db:
+    image: "redis"
+    ports:
+      - 6379:6379
+

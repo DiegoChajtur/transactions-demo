@@ -1,0 +1,10 @@
+.gitattributes
+.gitignore 
+.idea
+.mvn
+src
+docker
+HELP.md 
+mvnw 
+mvnw.cmd 
+pom.xml
